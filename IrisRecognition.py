@@ -1,17 +1,9 @@
-
 # coding: utf-8
 
 import cv2
-import numpy as np
 import glob
-import math
-import scipy
-from scipy.spatial import distance
-from scipy import signal
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 import matplotlib.pyplot as plt
 import pandas as pd
-from sklearn import metrics
 from IrisLocalization import IrisLocalization
 from IrisNormalization import IrisNormalization
 from ImageEnhancement import ImageEnhancement
@@ -19,38 +11,30 @@ from FeatureExtraction import FeatureExtraction
 from IrisMatching import IrisMatching
 from PerformanceEvaluation import PerformanceEvaluation
 import warnings
+
 warnings.filterwarnings("ignore")
 
+# Load training images
 images_train = []
-for img_path in sorted(glob.glob("CASIA_Iris_Image_Database/*.jpg")):
-    if (
-        img_path.endswith("_1_1.jpg")
-        or img_path.endswith("_1_2.jpg")
-        or img_path.endswith("_1_3.jpg")
-    ):
-        img = cv2.imread(img_path)
-        if img is None:
-            print(
-                f"Warning: Could not load image {img_path}. It may be corrupted or in an unsupported format."
-            )
-        else:
-            images_train.append(img)
+for img_path in sorted(glob.glob("CASIA_Iris_Image_Dataset/training/**/*.jpg")):
+    img = cv2.imread(img_path)
+    if img is None:
+        print(
+            f"Warning: Could not load image {img_path}. It may be corrupted or in an unsupported format."
+        )
+    else:
+        images_train.append(img)
 
+# Load testing images
 images_test = []
-for img_path in sorted(glob.glob("CASIA_Iris_Image_Database/*.jpg")):
-    if (
-        img_path.endswith("_2_1.jpg")
-        or img_path.endswith("_2_2.jpg")
-        or img_path.endswith("_2_3.jpg")
-        or img_path.endswith("_2_4.jpg")
-    ):
-        img = cv2.imread(img_path)
-        if img is None:
-            print(
-                f"Warning: Could not load image {img_path}. It may be corrupted or in an unsupported format."
-            )
-        else:
-            images_test.append(img)
+for img_path in sorted(glob.glob("CASIA_Iris_Image_Dataset/testing/**/*.jpg")):
+    img = cv2.imread(img_path)
+    if img is None:
+        print(
+            f"Warning: Could not load image {img_path}. It may be corrupted or in an unsupported format."
+        )
+    else:
+        images_test.append(img)
 
 print("Training images loaded:", len(images_train))
 print("Testing images loaded:", len(images_test))
@@ -76,11 +60,10 @@ feature_vector_test = FeatureExtraction(enhanced_test)
 print("Testing data processed.")
 
 
+# Initialize lists for CRR and matching results
 crr_L1 = []
 crr_L2 = []
 crr_cosine = []
-y_test = []
-y_pred = []
 match_cosine = []
 match_cosine_ROC = []
 
@@ -118,21 +101,21 @@ print("Completed Matching")
 
 
 # Table for CRR rates for the original and reduced feature set(components=107)
-print("\n\n\n")
-dict = {
-    "Similarity Measure": ["L1", "L2", "Cosine Distance"],
-    "CRR for Original Feature Set": [orig_crr_L1, orig_crr_L2, orig_crr_cosine],
-    "CRR for Reduced Feature Set (107)": [crr_L1[5], crr_L2[5], crr_cosine[5]],
-}
-table = pd.DataFrame(dict)
-print("Recognition results using Different Similarity Measures : \n")
+print("\n\n")
+table = pd.DataFrame(
+    {
+        "Similarity Measure": ["L1", "L2", "Cosine Distance"],
+        "CRR for Original Feature Set": [orig_crr_L1, orig_crr_L2, orig_crr_cosine],
+        "CRR for Reduced Feature Set (107)": [crr_L1[5], crr_L2[5], crr_cosine[5]],
+    }
+)
+print("Recognition results using Different Similarity Measures:\n")
 print(table.iloc[0], "\n")
 print(table.iloc[1], "\n")
 print(table.iloc[2])
 
-
 # Plotting the incresing CRR for cosine similarity with the incresing dimensionality
-plt.plot(components, crr_cosine)
+plt.plot(components, crr_cosine, marker="o")
 plt.axis([10, 107, 0, 100])
 plt.ylabel("Correct Recognition Rate (Cosine)")
 plt.xlabel("Dimensionality of the feature vector")
@@ -140,40 +123,58 @@ plt.title("Recognition Results")
 plt.show()
 
 
-# Calculating the false positive and the true positive rates for the data
-# We have taken match_cosine[5] because the 5th instance of the array is for the 107 reduced feature dimension
+# After computing match_cosine_ROC, calculate FMR and FNMR
 fmr_all = []
 fnmr_all = []
+thresh = [0.4, 0.5, 0.6]
 
-for q in range(0, 3):
+for q in range(len(thresh)):  # Loop over each threshold
     false_accept = 0
     false_reject = 0
-    num_1 = len([i for i in match_cosine_ROC[5][q] if i == 1])
-    num_0 = len([i for i in match_cosine_ROC[5][q] if i == 0])
+    num_1 = len(
+        [i for i in match_cosine_ROC[5][q] if i == 1]
+    )  # Count of accepted images
+    num_0 = len(
+        [i for i in match_cosine_ROC[5][q] if i == 0]
+    )  # Count of rejected images
 
-    for p in range(0, len(match_cosine[5])):
+    for p in range(len(match_cosine[5])):
         if match_cosine[5][p] == 0 and match_cosine_ROC[5][q][p] == 1:
-            false_accept += 1
+            false_accept += 1  # Incorrectly accepted (False Match)
         if match_cosine[5][p] == 1 and match_cosine_ROC[5][q][p] == 0:
-            false_reject += 1
-    fmr = false_accept / num_1
-    fnmr = false_reject / num_0
-    thresh = [0.4, 0.5, 0.6]
+            false_reject += 1  # Incorrectly rejected (False Non-Match)
+
+    # Calculate FMR and FNMR
+    if num_1 > 0:
+        fmr = false_accept / num_1  # False matches / total accepted
+    else:
+        fmr = 0
+
+    if num_0 > 0:
+        fnmr = false_reject / num_0  # False non-matches / total rejected
+    else:
+        fnmr = 0
+
     fmr_all.append(fmr)
     fnmr_all.append(fnmr)
 
+# Print FMR and FNMR results
+print("\n\n")
+list = pd.DataFrame(
+    {
+        "Threshold": thresh,
+        "FMR": fmr_all,
+        "FNMR": fnmr_all,
+    }
+)
+print("ROC Measures:\n")
+print(list.iloc[0], "\n")
+print(list.iloc[1], "\n")
+print(list.iloc[2])
 
-dict1 = {"Threshold": thresh, "FMR": fmr_all, "FNMR": fnmr_all}
-roc_table = pd.DataFrame(dict1)
-print("ROC Measures : \n")
-print(roc_table.iloc[0], "\n")
-print(roc_table.iloc[1], "\n")
-print(roc_table.iloc[2])
-
-
-# Plotting the ROC Curve
-plt.plot(fnmr_all, fmr_all)
+# Plotting the ROC Curve (FMR vs FNMR)
+plt.plot(fmr_all, fnmr_all, marker="o")
 plt.title("ROC Curve")
-plt.ylabel("False Non-Match Rate")
-plt.xlabel("False Match Rate")
+plt.xlabel("False Match Rate (FMR)")
+plt.ylabel("False Non-Match Rate (FNMR)")
 plt.show()

@@ -16,7 +16,7 @@ warnings.filterwarnings("ignore")
 
 # Load training images
 images_train = []
-for img_path in sorted(glob.glob("CASIA_Iris_Image_Dataset/training/**/*.jpg")):
+for img_path in sorted(glob.glob("CASIA_Iris_Image_Dataset/training/*.png")):
     img = cv2.imread(img_path)
     if img is None:
         print(
@@ -27,7 +27,7 @@ for img_path in sorted(glob.glob("CASIA_Iris_Image_Dataset/training/**/*.jpg")):
 
 # Load testing images
 images_test = []
-for img_path in sorted(glob.glob("CASIA_Iris_Image_Dataset/testing/**/*.jpg")):
+for img_path in sorted(glob.glob("CASIA_Iris_Image_Dataset/testing/*.png")):
     img = cv2.imread(img_path)
     if img is None:
         print(

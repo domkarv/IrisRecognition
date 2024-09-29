@@ -1,13 +1,20 @@
 ```
-git clone <repo>
+git clone https://github.com/domkarv/IrisRecognition.git
+```
 
-cd <repo_name>
+```
+cd IrisRecognition
 ```
 
 ```
 python -m venv venv
+```
 
-source venv/bin/activate  # On Windows: venv/Scripts/activate
+```
+source venv/bin/activate
+
+# On Windows:
+source venv/Scripts/activate
 ```
 
 ```
